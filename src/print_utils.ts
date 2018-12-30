@@ -125,8 +125,42 @@ export class PrintUtils {
         });
         PrintUtils.printData('Accounts', data);
     }
-    public async fetchAndPrintContractBalancesAsync(): Promise<void> {
-        const flattenedBalances = [];
+    public async fetchAndCompareBalancesAsync(oldBalances : any): Promise<any> {
+      const flattenedBalances : Array<any> = [];
+        const flattenedAccounts = Object.keys(this._accounts).map(
+            account => account.charAt(0).toUpperCase() + account.slice(1),
+        );
+        for (const tokenSymbol in this._tokens) {
+            const balances = [tokenSymbol];
+            const tokenAddress = this._tokens[tokenSymbol];
+            for (const account in this._accounts) {
+                const address = this._accounts[account];
+                const balanceBaseUnits = await this._contractWrappers.erc20Token.getBalanceAsync(tokenAddress, address);
+                const balance = Web3Wrapper.toUnitAmount(balanceBaseUnits, DECIMALS);
+                balances.push(balance.toString());
+            }
+            flattenedBalances.push(balances);
+        }
+        const table = new Table({
+            ...dataSchema,
+            head: ['Token', ...flattenedAccounts],
+        });
+
+        // Compare balances.
+      for ( let row = 0; row < oldBalances.length; row++){
+          for ( let i = 1; i < oldBalances[row].length; i++ ){
+            let delta = flattenedBalances[row][i] - oldBalances[row][i];
+            flattenedBalances[row][i] = `${flattenedBalances[row][i]} (${Number(delta).toPrecision(4)})`;
+          }
+        }
+        PrintUtils.printHeader('Balances');
+        PrintUtils.pushAndPrint(table, flattenedBalances);
+        return new Promise( (resolve : any,reject : any) => {
+          resolve(flattenedBalances);
+        })
+    }
+    public async fetchAndPrintContractBalancesAsync(): Promise<any> {
+      const flattenedBalances : Array<any> = [];
         const flattenedAccounts = Object.keys(this._accounts).map(
             account => account.charAt(0).toUpperCase() + account.slice(1),
         );
@@ -147,6 +181,9 @@ export class PrintUtils {
         });
         PrintUtils.printHeader('Balances');
         PrintUtils.pushAndPrint(table, flattenedBalances);
+        return new Promise( (resolve : any,reject : any) => {
+          resolve(flattenedBalances);
+        })
     }
     public async fetchAndPrintContractAllowancesAsync(): Promise<void> {
         const erc20ProxyAddress = this._contractWrappers.erc20Proxy.address;
